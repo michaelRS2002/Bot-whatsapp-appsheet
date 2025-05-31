@@ -1,0 +1,14 @@
+# Node modules
+node_modules/
+
+# Env variables
+.env
+
+# WhatsApp session data
+session/
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Logs
+logs/
+*.log
