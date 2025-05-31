@@ -6,29 +6,23 @@ const qrcode = require('qrcode-terminal');
 const express = require('express');
 const bodyParser = require('body-parser');
 
-// 1. URI de Mongo
-const mongoUri = process.env.MONGODB_URI;
-
-// 2. Modelo de mensajes pendientes
-const mensajeSchema = new mongoose.Schema({
-  nombre: String,
-  numero: String,
-  pedido: String,
-  timestamp: { type: Date, default: Date.now }
-});
-const MensajePendiente = mongoose.model('MensajePendiente', mensajeSchema);
+const mongoUri = process.env.MONGODB_URI ;
 
 (async () => {
   try {
+    // 1. Conectar a MongoDB
     await mongoose.connect(mongoUri);
     console.log('✅ Conectado a MongoDB');
 
+    // 2. Crear MongoStore
     const store = new MongoStore({ mongoose });
+
+    // 3. Crear cliente WhatsApp con RemoteAuth
     const client = new Client({
       authStrategy: new RemoteAuth({
         store,
-        backupSyncIntervalMs: 300000,
-        clientId: 'bot-whatsapp'
+        backupSyncIntervalMs: 300000, // 5 min
+        clientId: 'bot-whatsapp' // <- usa siempre el mismo para evitar QR
       }),
       puppeteer: {
         headless: true,
@@ -36,9 +30,10 @@ const MensajePendiente = mongoose.model('MensajePendiente', mensajeSchema);
       }
     });
 
-    client.on('qr', qr => {
+    // 4. Eventos del cliente
+    client.on('qr', (qr) => {
       qrcode.generate(qr, { small: true });
-      console.log('⚠️ Escanea el QR');
+      console.log('⚠️ Escanea el QR para iniciar sesión');
     });
 
     client.on('ready', () => {
@@ -55,7 +50,7 @@ const MensajePendiente = mongoose.model('MensajePendiente', mensajeSchema);
 
     await client.initialize();
 
-    // 3. Servidor Express
+    // 5. Crear servidor Express
     const app = express();
     app.use(bodyParser.json());
 
@@ -64,45 +59,25 @@ const MensajePendiente = mongoose.model('MensajePendiente', mensajeSchema);
       if (!nombre || !numero || !pedido)
         return res.status(400).send('Faltan datos');
 
-      const chatId = `${numero}@c.us`;
-      const mensaje = `Hola ${nombre}, hemos recibido tu pedido:\n${pedido}`;
-
       try {
+        const chatId = `${numero}@c.us`;
+        const mensaje = `Hola ${nombre}, hemos recibido tu pedido:\n${pedido}`;
         await client.sendMessage(chatId, mensaje);
-        res.status(200).send('✅ Mensaje enviado');
+        res.status(200).send('Mensaje enviado con éxito');
       } catch (err) {
-        console.warn('⏳ Guardando mensaje pendiente por error:', err.message);
-        await MensajePendiente.create({ nombre, numero, pedido });
-        res.status(202).send('Mensaje guardado para reintento');
+        console.error('Error al enviar mensaje:', err);
+        res.status(500).send('Error interno');
       }
     });
 
     const port = process.env.PORT || 3000;
     const server = app.listen(port, () => {
-      console.log(`🚀 Servidor escuchando en http://localhost:${port}`);
+      console.log(`🚀 Servidor Express escuchando en http://localhost:${port}`);
     });
 
-    // 4. Reintentar mensajes pendientes cada 30 segundos
-    setInterval(async () => {
-      if (!client.info || !client.info.wid) return; // cliente no listo
-
-      const pendientes = await MensajePendiente.find().limit(10);
-      for (const msg of pendientes) {
-        try {
-          const chatId = `${msg.numero}@c.us`;
-          const texto = `Hola ${msg.nombre}, hemos recibido tu pedido:\n${msg.pedido}`;
-          await client.sendMessage(chatId, texto);
-          await msg.deleteOne();
-          console.log(`✅ Reenviado a ${msg.numero}`);
-        } catch (err) {
-          console.warn(`❌ Falló reintento a ${msg.numero}:`, err.message);
-        }
-      }
-    }, 30000);
-
-    // 5. Apagado limpio
+    // 6. Manejo de cierre
     async function shutdown() {
-      console.log('🛑 Cerrando...');
+      console.log('🛑 Cerrando cliente y servidor...');
       await client.destroy();
       await mongoose.disconnect();
       server.close(() => {

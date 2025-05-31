@@ -12,3 +12,4 @@ session/
 # Logs
 logs/
 *.log
+.zip
