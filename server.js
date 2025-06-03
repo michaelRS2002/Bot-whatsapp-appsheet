@@ -22,7 +22,7 @@ const mongoUri = process.env.MONGODB_URI ;
       authStrategy: new RemoteAuth({
         store,
         backupSyncIntervalMs: 300000, // 5 min
-        clientId: 'bot-whatsapp2' // <- usa siempre el mismo para evitar QR
+        clientId: 'bot-whatsapp' // <- usa siempre el mismo para evitar QR
       }),
       puppeteer: {
         headless: true,
