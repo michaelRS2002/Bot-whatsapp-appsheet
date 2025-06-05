@@ -60,8 +60,8 @@ const mongoUri = process.env.MONGODB_URI ;
         return res.status(400).send('Faltan datos');
 
       try {
-        const chatId = `${numero}@c.us`;
-        const mensaje = `Hola ${nombre}, hemos recibido tu pedido:\n${pedido}`;
+        const chatId = `${numero}@g.us`;
+        const mensaje = `Nuevo pedido de ${nombre}\n${pedido}`;
         await client.sendMessage(chatId, mensaje);
         res.status(200).send('Mensaje enviado con éxito');
       } catch (err) {
